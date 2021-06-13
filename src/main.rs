@@ -1,97 +1,69 @@
-use std::io::Write;
-use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
-use color_eyre::eyre::{self, eyre};
+use color_eyre::eyre;
 use env_logger::Env;
-use serde::Deserialize;
-use serde_json::{json, Deserializer, Value};
+use trillium::{Conn, State};
+use trillium_logger::Logger;
+use trillium_router::Router;
+use trillium_tokio::Stopper;
 
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;
-    env_logger::init_from_env(Env::default().default_filter_or("debug"));
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    let listener = TcpListener::bind("0.0.0.0:8080")?;
+    let stopper = Arc::new(Mutex::new(Stopper::new()));
+    let quit = Arc::new(AtomicBool::new(false));
 
-    for stream in listener.incoming() {
-        let stream = match stream {
-            Ok(stream) => stream,
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
-            }
-        };
+    ctrlc::set_handler({
+        let stopper = stopper.clone();
+        let quit = quit.clone();
+        move || {
+            quit.store(true, Ordering::SeqCst);
+            stopper.lock().unwrap().stop();
+        }
+    })?;
 
-        let message = Deserializer::from_reader(&stream)
-            .into_iter::<Value>()
-            .next()
-            .ok_or_else(|| eyre!("no payload"))
-            .and_then(|x| x.map_err(|e| eyre!(e)));
+    loop {
+        let new_stopper = Stopper::new();
 
-        let message = match message {
-            Ok(data) => data,
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
-            }
-        };
+        // Reset stopper at the start of the loop
+        *stopper.clone().lock().unwrap() = new_stopper.clone();
 
-        log::debug!("{}", message);
+        trillium_tokio::config()
+            .with_host("0.0.0.0")
+            .with_stopper(new_stopper.clone())
+            .without_signals()
+            .run((State::new(new_stopper), Logger::new(), router()));
 
-        let message = match serde_json::from_value(message) {
-            Ok(message) => message,
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
-            }
-        };
+        if quit.load(Ordering::SeqCst) {
+            break;
+        }
 
-        handle_message(message, stream);
+        log::info!("suspending system (hibernate: false)");
+        unsafe { SetSuspendState(false, false, false) };
     }
+
+    log::info!("shutting down");
 
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[serde(tag = "command")]
-enum Message {
-    Suspend {
-        #[serde(default)]
-        options: SuspendOptions,
-    },
+fn router() -> Router {
+    Router::build(|mut router| {
+        router.get("/", ping);
+        router.post("/suspend", suspend);
+    })
 }
 
-#[derive(Default, Deserialize)]
-struct SuspendOptions {
-    hibernate: bool,
+async fn ping(conn: Conn) -> Conn {
+    conn.ok("ok")
 }
 
-fn handle_message(message: Message, stream: TcpStream) {
-    match message {
-        Message::Suspend { options } => handle_suspend(options, stream),
-    }
-}
-
-fn handle_suspend(options: SuspendOptions, stream: TcpStream) {
-    fn send_res(mut stream: TcpStream) -> eyre::Result<()> {
-        let res = serde_json::to_vec(&json!({
-            "success": true
-        }))?;
-
-        stream.write_all(&res)?;
-        stream.flush()?;
-
-        Ok(())
-    }
-
-    if let Err(e) = send_res(stream) {
-        log::error!("{}", e);
-        return;
-    }
-
-    log::info!("suspending system (hibernate: {})", options.hibernate);
-
-    unsafe { SetSuspendState(options.hibernate, false, false) };
+async fn suspend(conn: Conn) -> Conn {
+    let stopper: &Stopper = conn.state().unwrap();
+    stopper.stop();
+    conn.ok("ok")
 }
 
 #[link(name = "powrprof")]
