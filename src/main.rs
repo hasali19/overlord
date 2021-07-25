@@ -1,52 +1,38 @@
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
-use color_eyre::eyre::{self, eyre};
+use color_eyre::eyre::{self, Context};
 use env_logger::Env;
 use serde::Deserialize;
-use serde_json::{json, Deserializer, Value};
+use serde_json::json;
 
 fn main() -> eyre::Result<()> {
     color_eyre::install()?;
     env_logger::init_from_env(Env::default().default_filter_or("debug"));
 
-    let listener = TcpListener::bind("0.0.0.0:8080")?;
+    log::info!("running server at tcp://0.0.0.0:8080");
 
-    for stream in listener.incoming() {
-        let stream = match stream {
-            Ok(stream) => stream,
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
+    TcpListener::bind("0.0.0.0:8080")?
+        .incoming()
+        .filter_map(|stream| stream.ok())
+        .for_each(|stream| {
+            if let Err(e) = handle_connection(stream) {
+                log::error!("{:?}", e);
             }
-        };
+        });
 
-        let message = Deserializer::from_reader(&stream)
-            .into_iter::<Value>()
-            .next()
-            .ok_or_else(|| eyre!("no payload"))
-            .and_then(|x| x.map_err(|e| eyre!(e)));
+    Ok(())
+}
 
-        let message = match message {
-            Ok(data) => data,
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
-            }
-        };
+fn handle_connection(stream: TcpStream) -> eyre::Result<()> {
+    let mut reader = BufReader::new(&stream);
+    let mut message = String::new();
 
-        log::debug!("{}", message);
+    reader.read_line(&mut message)?;
+    log::debug!("{}", message.trim());
 
-        let message = match serde_json::from_value(message) {
-            Ok(message) => message,
-            Err(e) => {
-                log::error!("{}", e);
-                continue;
-            }
-        };
-
-        handle_message(message, stream);
-    }
+    let message = serde_json::from_str(&message).context("failed to deserialize message")?;
+    handle_message(message, stream);
 
     Ok(())
 }
