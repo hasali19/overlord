@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2" IgnorableNamespaces="uap rescap desktop desktop2">
+
+  <Identity Name="0f82dfcf-56aa-4285-90f5-3a09366b72fa" Publisher="CN=hasali19, C=UK" Version="1.0.3.0" />
+
+  <Properties>
+    <DisplayName>Overlord Server</DisplayName>
+    <PublisherDisplayName>Hasan Ali</PublisherDisplayName>
+    <Logo>icon.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-gb" />
+  </Resources>
+
+  <Applications>
+    <Application Id="OverlordServer" Executable="overlord.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Overlord Server" Description="Various functions for remote control of the machine" Square150x150Logo="Square150x150Logo.png" Square44x44Logo="Square44x44Logo.png" BackgroundColor="transparent">
+        <uap:SplashScreen Image="SplashScreen.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension Category="windows.startupTask" Executable="overlord.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="OverlordServer" Enabled="true" DisplayName="Overlord Server" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Extensions>
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="overlord.exe">
+        <desktop2:Rule Direction="in" IPProtocol="TCP" Profile="all"/>
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
+
+</Package>
