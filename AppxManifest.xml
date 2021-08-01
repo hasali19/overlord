@@ -5,7 +5,7 @@
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2" IgnorableNamespaces="uap rescap desktop desktop2">
 
-  <Identity Name="0f82dfcf-56aa-4285-90f5-3a09366b72fa" Publisher="CN=hasali19, C=UK" Version="1.0.3.0" />
+  <Identity Name="0f82dfcf-56aa-4285-90f5-3a09366b72fa" Publisher="CN=hasali19, C=UK" Version="1.0.4.0" />
 
   <Properties>
     <DisplayName>Overlord Server</DisplayName>
